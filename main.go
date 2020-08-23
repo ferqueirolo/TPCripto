@@ -1,13 +1,8 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"fmt"
-	"log"
-	"math/big"
-	"os"
-
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
@@ -15,6 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/pkg/errors"
+	"log"
+	"math/big"
 )
 
 /*
@@ -22,8 +19,6 @@ import (
 	TEMA: ETHEREUM - TRANSACCIONES
 
 */
-
-var reader = bufio.NewReader(os.Stdin)
 
 func main() {
 	defer func() {
@@ -33,7 +28,7 @@ func main() {
 		}
 	}()
 	/// - - - -  - - - -  - - - -  SETUP - - - -  - - - -  - - - -  - - - -
-
+	ctx := context.Background()
 	// - - - - CLIENTE A
 	// Creamos la clave privada del cliente A
 	privateKeyA, err := crypto.GenerateKey()
@@ -71,9 +66,10 @@ func main() {
 	fmt.Println("CLIENTES INICIALES")
 	printBalance("A", balance)
 	fmt.Println("Clave publica A: " + publicKeyA.From.String())
+	fmt.Println()
 	printBalance("B", balance)
 	fmt.Println("Clave publica B: " + publicKeyB.From.String())
-	fmt.Println("- - - - - - - - - - - \n")
+	fmt.Println("- - - - - - - - - - -")
 
 	// CONFIGURAMOS LA RED SIMULADA DE ETHEREUM
 	blockGasLimit := uint64(4712388)
@@ -88,7 +84,8 @@ func main() {
 		 	- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 	*/
 
-	nonce, err := backend.PendingNonceAt(context.Background(), publicKeyA.From)
+	// NUMERO DE TRANSACCIONES ASOCIADAS A UNA CUENTA
+	nonce, err := backend.PendingNonceAt(ctx, publicKeyA.From)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -96,7 +93,7 @@ func main() {
 	var data []byte
 
 	// Monto de la primera transacción
-	a := extractAmount()
+	a := getAmount()
 	amount := big.NewInt(a)
 
 	// Gas limite de la primera transacción - MINIMO COSTO DE TRANSACCION ES 21000 WEI
@@ -118,8 +115,7 @@ func main() {
 	}
 
 	// Se envia la transacción
-
-	if err = backend.SendTransaction(context.Background(), signedATx); err != nil {
+	if err = backend.SendTransaction(ctx, signedATx); err != nil {
 		fmt.Println("ERROR Gas insuficiente")
 		return
 	}
@@ -131,8 +127,9 @@ func main() {
 	balance1A := extractBalance(err, backend, publicKeyA)
 	balance1B := extractBalance(err, backend, publicKeyB)
 
-	trx1 := backend.Blockchain().CurrentBlock().Transactions()[0]
-	fmt.Printf("A - - - %v - - - > B\n", trx1.Value())
+	block1 := backend.Blockchain().CurrentBlock()
+	trx1 := block1.Transactions()[0]
+	fmt.Printf("A - - - %v - - - > B\n\n", trx1.Value())
 	printTrxInfo(trx1)
 	printBalance("A", extractBalance(err, backend, publicKeyA))
 	printBalance("B", extractBalance(err, backend, publicKeyB))
@@ -143,7 +140,7 @@ func main() {
 		return
 	}
 
-	fmt.Println()
+	fmt.Println("- - - - - - - - - - -")
 	fmt.Println()
 
 	/*  	- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -164,11 +161,17 @@ func main() {
 		},
 	}
 
+	// NUMERO DE TRANSACCIONES ASOCIADAS A UNA CUENTA
+	nonce, err = backend.PendingNonceAt(ctx, publicKeyB.From)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// CONFIGURAMOS LA RED SIMULADA DE ETHEREUM
 	backend = backends.NewSimulatedBackend(genesisChain2, blockGasLimit)
 
 	// Monto de la segunda transacción
-	a = extractAmount()
+	a = getAmount()
 	amount = big.NewInt(a)
 
 	// Gas limite de la segunda transacción - MINIMO COSTO DE TRANSACCION ES 21000 WEI
@@ -188,7 +191,7 @@ func main() {
 	}
 
 	// Se envia la transacción
-	err = backend.SendTransaction(context.Background(), signedBTx)
+	err = backend.SendTransaction(ctx, signedBTx)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -221,7 +224,7 @@ func getGasLimit() int64 {
 }
 
 // OBTIENE DEL INPUT EL AMOUNT
-func extractAmount() int64 {
+func getAmount() int64 {
 	fmt.Print("Monto transaccion: ")
 	var a int64
 	fmt.Scanln(&a)
@@ -233,8 +236,10 @@ func printTrxInfo(trx *types.Transaction) {
 	fmt.Printf("Amount: %v\n", trx.Value())
 	fmt.Printf("GasPrice: %v\n", trx.GasPrice())
 	fmt.Printf("Gas: %v\n", trx.Gas())
-	fmt.Printf("Cost: %v\n", trx.Cost())
-	fmt.Printf("To: %v\n", trx.To().String())
+	fmt.Printf("Cost: %v + (%v * %v) = %v\n", trx.Value(), trx.Gas(), trx.GasPrice(),
+		trx.Cost())
+	fmt.Printf("To (public key): %v\n", trx.To().String())
+	fmt.Println()
 }
 
 // EXTRAE EL BALANCE DE UNA RED SIMULADA PREGUNTANDO POR EL PRIMER BLOQUE Y POR CLAVE PUBLICA
