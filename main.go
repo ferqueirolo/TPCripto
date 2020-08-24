@@ -25,6 +25,8 @@ func main() {
 		r := recover()
 		if r != nil {
 			fmt.Println(errors.Errorf("ERROR: %v", r))
+			fmt.Printf("\nPress 'Enter' to finish...")
+			fmt.Scanln()
 		}
 	}()
 	/// - - - -  - - - -  - - - -  SETUP - - - -  - - - -  - - - -  - - - -
